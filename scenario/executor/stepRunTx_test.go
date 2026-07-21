@@ -89,3 +89,42 @@ func TestExecuteTxRollsBackPostSnapshotMutationsOnFailedVM(t *testing.T) {
 	require.Zero(t, sender.Balance.Cmp(big.NewInt(40)))
 	require.Len(t, world.AccountsAdapter.(*worldmock.MockAccountsAdapter).Snapshots, 0)
 }
+
+// TestUpdateStateAfterTxRollbackRestoresAllPostSnapshotMutations exercises the
+// error path after both the sender debit and output-account updates have been
+// applied. The balance-delta invariant deliberately fails, then the snapshot
+// rollback must restore the sender and remove the newly-created receiver.
+func TestUpdateStateAfterTxRollbackRestoresAllPostSnapshotMutations(t *testing.T) {
+	world := worldmock.NewMockWorld()
+	sender := world.AcctMap.CreateAccount([]byte("sender"), world)
+	sender.Balance = big.NewInt(10)
+
+	executor := &ScenarioExecutor{World: world}
+	tx := &scenmodel.Transaction{
+		Type: scenmodel.Transfer,
+		From: scenmodel.NewJSONBytesFromString(sender.Address, "sender"),
+		EGLDValue: scenmodel.JSONBigInt{
+			Value:    big.NewInt(5),
+			Original: "5",
+		},
+	}
+	output := &vmcommon.VMOutput{
+		OutputAccounts: map[string]*vmcommon.OutputAccount{
+			"receiver": {
+				Address:      []byte("receiver"),
+				BalanceDelta: big.NewInt(2),
+			},
+		},
+	}
+
+	world.CreateStateBackup()
+	err := executor.updateStateAfterTx(tx, output)
+	require.ErrorContains(t, err, "sum of balance deltas should equal call value")
+	require.Zero(t, sender.Balance.Cmp(big.NewInt(5)))
+	require.NotNil(t, world.AcctMap.GetAccount([]byte("receiver")))
+
+	require.NoError(t, world.RollbackChanges())
+	require.Zero(t, sender.Balance.Cmp(big.NewInt(10)))
+	require.Nil(t, world.AcctMap.GetAccount([]byte("receiver")))
+	require.Len(t, world.AccountsAdapter.(*worldmock.MockAccountsAdapter).Snapshots, 0)
+}

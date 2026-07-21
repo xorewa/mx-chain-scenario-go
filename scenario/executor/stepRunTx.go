@@ -328,7 +328,9 @@ func (ae *ScenarioExecutor) updateStateAfterTx(
 	// subtract call value from sender (this is not reflected in the delta)
 	// except for validatorReward, there is no sender there
 	if tx.Type.HasSender() {
-		_ = ae.World.UpdateBalanceWithDelta(tx.From.Value, big.NewInt(0).Neg(tx.EGLDValue.Value))
+		if err := ae.World.UpdateBalanceWithDelta(tx.From.Value, big.NewInt(0).Neg(tx.EGLDValue.Value)); err != nil {
+			return err
+		}
 	}
 
 	// update accounts based on deltas

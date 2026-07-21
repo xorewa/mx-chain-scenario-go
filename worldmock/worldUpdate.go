@@ -23,7 +23,14 @@ func (b *MockWorld) UpdateBalanceWithDelta(address []byte, balanceDelta *big.Int
 	if acct == nil {
 		return errors.New("method UpdateBalanceWithDelta expects an existing address")
 	}
-	acct.Balance = big.NewInt(0).Add(acct.Balance, balanceDelta)
+	if balanceDelta == nil {
+		return errors.New("method UpdateBalanceWithDelta expects a non-nil balance delta")
+	}
+	newBalance := big.NewInt(0).Add(acct.Balance, balanceDelta)
+	if newBalance.Sign() < 0 {
+		return errors.New("method UpdateBalanceWithDelta would create a negative balance")
+	}
+	acct.Balance = newBalance
 	return nil
 }
 

@@ -1,7 +1,9 @@
 package exporter
 
 import (
+	"fmt"
 	"math/big"
+	"strings"
 
 	scenmodel "github.com/multiversx/mx-chain-scenario-go/scenario/model"
 	txDataBuilder "github.com/multiversx/mx-chain-vm-common-go/txDataBuilder"
@@ -11,8 +13,7 @@ const vmTypeHex = "0500"
 
 const dummyCodeMetadataHex = "0102"
 
-// length of "file:" in the scenario test
-const contractCodePrefixLength = 5
+const contractCodePrefix = "file:"
 
 // Transaction defines the test tranaction structure
 type Transaction struct {
@@ -131,15 +132,30 @@ func (tx *Transaction) GetGasLimitAndPrice() (uint64, uint64) {
 	return tx.gasLimit, tx.gasPrice
 }
 
-// WithDeployData sets the deploy data: sc code + arguments
-func (tx *Transaction) WithDeployData(scCodePath string, args [][]byte) *Transaction {
-	deployData := createDeployTxData(scCodePath, args)
+// WithDeployData sets the deploy data: SC code plus arguments. Contract code
+// paths must use the explicit file: prefix accepted by the exporter.
+func (tx *Transaction) WithDeployData(scCodePath string, args [][]byte) (*Transaction, error) {
+	deployData, err := createDeployTxData(scCodePath, args)
+	if err != nil {
+		return nil, err
+	}
 	tx.deployData = append(tx.deployData, deployData...)
-	return tx
+	return tx, nil
 }
 
-func createDeployTxData(scCodePath string, args [][]byte) []byte {
-	scCode := GetSCCode(scCodePath[contractCodePrefixLength:])
+func createDeployTxData(scCodePath string, args [][]byte) ([]byte, error) {
+	if !strings.HasPrefix(scCodePath, contractCodePrefix) {
+		return nil, fmt.Errorf("invalid smart-contract code path %q: expected %q prefix", scCodePath, contractCodePrefix)
+	}
+	fileName := strings.TrimPrefix(scCodePath, contractCodePrefix)
+	if fileName == "" {
+		return nil, fmt.Errorf("invalid smart-contract code path %q: file name is empty", scCodePath)
+	}
+
+	scCode, err := GetSCCode(fileName)
+	if err != nil {
+		return nil, err
+	}
 	tdb := txDataBuilder.NewBuilder()
 	tdb.Bytes(scCode)
 	tdb.Bytes([]byte(vmTypeHex))
@@ -149,7 +165,7 @@ func createDeployTxData(scCodePath string, args [][]byte) []byte {
 			tdb.Bytes(args[i])
 		}
 	}
-	return tdb.ToBytes()
+	return tdb.ToBytes(), nil
 }
 
 func (tx *Transaction) GetDeployData() []byte {
@@ -186,11 +202,13 @@ func CreateDeployTransaction(
 	sndAddr []byte,
 	gasLimit uint64,
 	gasPrice uint64,
-) *Transaction {
-	return NewTransaction().
-		WithDeployData(scCodePath, args).
-		WithSenderAddress(sndAddr).
-		WithGasLimitAndPrice(gasLimit, gasPrice)
+) (*Transaction, error) {
+	tx, err := NewTransaction().WithDeployData(scCodePath, args)
+	if err != nil {
+		return nil, err
+	}
+	return tx.WithSenderAddress(sndAddr).
+		WithGasLimitAndPrice(gasLimit, gasPrice), nil
 }
 
 // CreateUpgradeTransaction creates a deploy transaction
@@ -201,10 +219,12 @@ func CreateUpgradeTransaction(
 	rcvAddr []byte,
 	gasLimit uint64,
 	gasPrice uint64,
-) *Transaction {
-	return NewTransaction().
-		WithDeployData(scCodePath, args).
-		WithSenderAddress(sndAddr).
+) (*Transaction, error) {
+	tx, err := NewTransaction().WithDeployData(scCodePath, args)
+	if err != nil {
+		return nil, err
+	}
+	return tx.WithSenderAddress(sndAddr).
 		WithReceiverAddress(rcvAddr).
-		WithGasLimitAndPrice(gasLimit, gasPrice)
+		WithGasLimitAndPrice(gasLimit, gasPrice), nil
 }

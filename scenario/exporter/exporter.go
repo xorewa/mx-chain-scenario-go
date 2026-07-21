@@ -123,7 +123,7 @@ func getAccountsAndTransactionsFromSteps(steps []scenmodel.Step) (stateAndBenchm
 					if txIdRequiresBenchmark(step.TxIdent) && benchmarkTxPosIsNotSet(stateAndBenchmarkInfo.BenchmarkTxPos) {
 						stateAndBenchmarkInfo.BenchmarkTxPos = len(stateAndBenchmarkInfo.Txs)
 					}
-					tx := CreateUpgradeTransaction(
+					tx, err := CreateUpgradeTransaction(
 						arguments,
 						step.Tx.Code.Original,
 						step.Tx.From.Value,
@@ -131,15 +131,21 @@ func getAccountsAndTransactionsFromSteps(steps []scenmodel.Step) (stateAndBenchm
 						step.Tx.GasLimit.Value,
 						step.Tx.GasPrice.Value,
 					)
+					if err != nil {
+						return getInvalidScenarioWithBenchmark(), err
+					}
 					stateAndBenchmarkInfo.Txs = append(stateAndBenchmarkInfo.Txs, tx)
 				case "scDeploy":
-					deployTx := CreateDeployTransaction(
+					deployTx, err := CreateDeployTransaction(
 						arguments,
 						step.Tx.Code.Original,
 						step.Tx.From.Value,
 						step.Tx.GasLimit.Value,
 						step.Tx.GasPrice.Value,
 					)
+					if err != nil {
+						return getInvalidScenarioWithBenchmark(), err
+					}
 					stateAndBenchmarkInfo.DeployTxs = append(stateAndBenchmarkInfo.DeployTxs, deployTx)
 				default:
 					steps = append(steps[:i], steps[i+1:]...)

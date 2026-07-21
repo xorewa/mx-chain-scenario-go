@@ -35,7 +35,9 @@ func TestGetAccountsAndTransactionsFrom_Adder(t *testing.T) {
 	expectedBenchmarkTxPos := 1
 
 	ownerAccount := exporter.SetNewAccount(1, addressOwner, big.NewInt(48), make(map[string][]byte), make([]byte, 0), make([]byte, 0))
-	scAccount := exporter.SetNewAccount(0, append(exporter.ScAddressPrefix, addressAdder[exporter.ScAddressPrefixLength:]...), big.NewInt(0), make(map[string][]byte), exporter.GetSCCode("adder.wasm"), addressOwner)
+	scCode, err := exporter.GetSCCode("adder.wasm")
+	require.NoError(t, err)
+	scAccount := exporter.SetNewAccount(0, append(exporter.ScAddressPrefix, addressAdder[exporter.ScAddressPrefixLength:]...), big.NewInt(0), make(map[string][]byte), scCode, addressOwner)
 	deployedScAccount := exporter.SetNewAccount(0, append(exporter.ScAddressPrefix, addressDeployedAdder[exporter.ScAddressPrefixLength:]...), big.NewInt(0), make(map[string][]byte), make([]byte, 0), addressOwner)
 	expectedAccs = append(expectedAccs, ownerAccount, scAccount)
 	expectedDeployedAccs = append(expectedDeployedAccs, deployedScAccount)
@@ -60,7 +62,9 @@ func TestGetAccountsAndTransactionsFrom_AdderWithExternalSteps(t *testing.T) {
 	expectedBenchmarkTxPos := 1
 
 	ownerAccount := exporter.SetNewAccount(1, addressOwner, big.NewInt(48), make(map[string][]byte), make([]byte, 0), make([]byte, 0))
-	scAccount := exporter.SetNewAccount(0, append(exporter.ScAddressPrefix, addressAdder[exporter.ScAddressPrefixLength:]...), big.NewInt(0), make(map[string][]byte), exporter.GetSCCode("adder.wasm"), addressOwner)
+	scCode, err := exporter.GetSCCode("adder.wasm")
+	require.NoError(t, err)
+	scAccount := exporter.SetNewAccount(0, append(exporter.ScAddressPrefix, addressAdder[exporter.ScAddressPrefixLength:]...), big.NewInt(0), make(map[string][]byte), scCode, addressOwner)
 	aliceAccount := exporter.SetNewAccount(5, addressAlice, big.NewInt(284), make(map[string][]byte), make([]byte, 0), make([]byte, 0))
 	bobAccount := exporter.SetNewAccount(3, addressBob, big.NewInt(11), make(map[string][]byte), make([]byte, 0), make([]byte, 0))
 	expectedAccs = append(expectedAccs, aliceAccount, scAccount, bobAccount, ownerAccount)

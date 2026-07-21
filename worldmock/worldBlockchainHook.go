@@ -50,7 +50,10 @@ func (b *MockWorld) NewAddress(creatorAddress []byte, creatorNonce uint64, vmTyp
 
 	// If a mock address wasn't registered for the specified creatorAddress, generate one automatically.
 	// This is not the real algorithm but it's simple and close enough.
-	result := GenerateMockAddress(creatorAddress, creatorNonce, vmType)
+	result, err := GenerateMockAddressChecked(creatorAddress, creatorNonce, vmType)
+	if err != nil {
+		return nil, err
+	}
 	b.LastCreatedContractAddress = result
 	return result, nil
 }
