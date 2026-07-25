@@ -27,6 +27,32 @@ func TestResolveAbsolutePathRejectsTraversalOutsideContext(t *testing.T) {
 	require.True(t, errors.Is(err, ErrPathEscapesContext))
 }
 
+func TestResolveAbsolutePathAllowsArtifactWithinRustProject(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "Cargo.toml"), []byte("[package]\nname = \"contract\"\n"), 0o600))
+	contextFile := filepath.Join(projectDir, "scenarios", "root.scen.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contextFile), 0o755))
+
+	resolver := NewDefaultFileResolver().WithContext(contextFile)
+	fullPath, err := resolver.ResolveAbsolutePath("../output/contract.mxsc.json")
+
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(projectDir, "output", "contract.mxsc.json"), fullPath)
+}
+
+func TestResolveAbsolutePathRejectsTraversalOutsideRustProject(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "Cargo.toml"), []byte("[package]\nname = \"contract\"\n"), 0o600))
+	contextFile := filepath.Join(projectDir, "scenarios", "root.scen.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contextFile), 0o755))
+
+	resolver := NewDefaultFileResolver().WithContext(contextFile)
+	_, err := resolver.ResolveAbsolutePath("../../outside-project.mxsc.json")
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrPathEscapesContext))
+}
+
 func TestResolveAbsolutePathAllowsExplicitReplacement(t *testing.T) {
 	resolver := NewDefaultFileResolver().ReplacePath("contract.wasm", "../shared/contract.wasm")
 

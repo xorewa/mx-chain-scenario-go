@@ -91,7 +91,7 @@ func (fr *DefaultFileResolver) ResolveAbsolutePath(value string) (string, error)
 func findResolutionRoot(startDir string) string {
 	current := filepath.Clean(startDir)
 	for {
-		if _, err := os.Stat(filepath.Join(current, "go.mod")); err == nil {
+		if isProjectRoot(current) {
 			return current
 		}
 
@@ -101,6 +101,20 @@ func findResolutionRoot(startDir string) string {
 		}
 		current = parent
 	}
+}
+
+// isProjectRoot recognises the project manifests used by scenario-producing
+// ecosystems. Relative scenario references may move within this boundary but
+// must never escape it. In particular, Rust smart-contract templates keep
+// scenarios in scenarios/ and generated artifacts in output/.
+func isProjectRoot(dir string) bool {
+	for _, manifest := range []string{"go.mod", "Cargo.toml"} {
+		if _, err := os.Stat(filepath.Join(dir, manifest)); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ResolveFileValue converts a value prefixed with "file:" and replaces it with the file contents.
