@@ -53,6 +53,41 @@ func TestResolveAbsolutePathRejectsTraversalOutsideRustProject(t *testing.T) {
 	require.True(t, errors.Is(err, ErrPathEscapesContext))
 }
 
+func TestResolveAbsolutePathAllowsSiblingArtifactWithinRustWorkspace(t *testing.T) {
+	workspaceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "Cargo.toml"), []byte("[workspace]\nmembers = []\n"), 0o600))
+	projectDir := filepath.Join(workspaceDir, "contracts", "contract-a")
+	contextFile := filepath.Join(projectDir, "scenarios", "root.scen.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contextFile), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "Cargo.toml"), []byte("[package]\nname = \"contract-a\"\n"), 0o600))
+
+	resolver := NewDefaultFileResolver().WithContext(contextFile)
+	fullPath, err := resolver.ResolveAbsolutePath("../../contract-b/output/contract-b.mxsc.json")
+
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(workspaceDir, "contracts", "contract-b", "output", "contract-b.mxsc.json"), fullPath)
+}
+
+func TestResolveAbsolutePathRejectsSymlinkEscapingWorkspace(t *testing.T) {
+	workspaceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(workspaceDir, "Cargo.toml"), []byte("[workspace]\nmembers = []\n"), 0o600))
+	projectDir := filepath.Join(workspaceDir, "contracts", "contract-a")
+	contextFile := filepath.Join(projectDir, "scenarios", "root.scen.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contextFile), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "Cargo.toml"), []byte("[package]\nname = \"contract-a\"\n"), 0o600))
+
+	outsideDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outsideDir, "contract.mxsc.json"), []byte("wasm"), 0o600))
+	linkPath := filepath.Join(projectDir, "scenarios", "outside")
+	require.NoError(t, os.Symlink(outsideDir, linkPath))
+
+	resolver := NewDefaultFileResolver().WithContext(contextFile)
+	_, err := resolver.ResolveAbsolutePath("outside/contract.mxsc.json")
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrPathEscapesContext))
+}
+
 func TestResolveAbsolutePathAllowsExplicitReplacement(t *testing.T) {
 	resolver := NewDefaultFileResolver().ReplacePath("contract.wasm", "../shared/contract.wasm")
 

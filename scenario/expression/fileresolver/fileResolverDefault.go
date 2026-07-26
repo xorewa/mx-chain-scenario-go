@@ -77,11 +77,10 @@ func (fr *DefaultFileResolver) ResolveAbsolutePath(value string) (string, error)
 	}
 
 	fullPath := filepath.Join(testDirPath, cleanValue)
-	relPath, err := filepath.Rel(resolutionRoot, fullPath)
-	if err != nil {
-		return "", err
+	if !isPathWithin(resolutionRoot, fullPath) {
+		return "", fmt.Errorf("%w: %s", ErrPathEscapesContext, value)
 	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if resolvedPath, err := filepath.EvalSymlinks(fullPath); err == nil && !isPathWithin(resolutionRoot, resolvedPath) {
 		return "", fmt.Errorf("%w: %s", ErrPathEscapesContext, value)
 	}
 
@@ -90,17 +89,29 @@ func (fr *DefaultFileResolver) ResolveAbsolutePath(value string) (string, error)
 
 func findResolutionRoot(startDir string) string {
 	current := filepath.Clean(startDir)
+	nearestProjectRoot := ""
 	for {
-		if isProjectRoot(current) {
+		if isWorkspaceRoot(current) {
 			return current
+		}
+		if nearestProjectRoot == "" && isProjectRoot(current) {
+			nearestProjectRoot = current
 		}
 
 		parent := filepath.Dir(current)
 		if parent == current {
+			if nearestProjectRoot != "" {
+				return nearestProjectRoot
+			}
 			return startDir
 		}
 		current = parent
 	}
+}
+
+func isPathWithin(root, path string) bool {
+	relPath, err := filepath.Rel(root, path)
+	return err == nil && relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator))
 }
 
 // isProjectRoot recognises the project manifests used by scenario-producing
@@ -110,6 +121,21 @@ func findResolutionRoot(startDir string) string {
 func isProjectRoot(dir string) bool {
 	for _, manifest := range []string{"go.mod", "Cargo.toml"} {
 		if _, err := os.Stat(filepath.Join(dir, manifest)); err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isWorkspaceRoot(dir string) bool {
+	cargoManifest, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
+	if err != nil {
+		return false
+	}
+
+	for _, line := range strings.Split(string(cargoManifest), "\n") {
+		if strings.TrimSpace(line) == "[workspace]" {
 			return true
 		}
 	}
