@@ -1,6 +1,6 @@
 module github.com/multiversx/mx-chain-scenario-go
 
-go 1.26
+go 1.26.2
 
 require (
 	github.com/TwiN/go-color v1.1.0
